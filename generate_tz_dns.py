@@ -79,6 +79,33 @@ def generate_txt_record(tz_name: str) -> str:
     except Exception as e:
         return [f"error={str(e)}"]
 
+def generate_timezone_list(timezones, domain_suffix):
+    """Generate discovery records for timezone list."""
+    print("; Timezone Discovery Records")
+    print(f"list.{domain_suffix}. IN TXT \"count={len(timezones)}\"")
+    
+    # Group by region for easier discovery
+    regions = {}
+    for tz_name in timezones:
+        if '/' in tz_name:
+            region = tz_name.split('/')[0]
+            if region not in regions:
+                regions[region] = []
+            regions[region].append(tz_name)
+    
+    # Generate region lists
+    for region, tz_list in sorted(regions.items()):
+        region_domain = f"{region.lower()}.list.{domain_suffix}"
+        print(f"; {region} timezones")
+        print(f'{region_domain}. IN TXT "count={len(tz_list)}"')
+        
+        # Add timezone entries (display_name|dns_name format)
+        for tz_name in sorted(tz_list):
+            display_name = tz_name.replace('_', ' ')  # Make readable
+            dns_name = tz_name.lower().replace('/', '.')
+            print(f'{region_domain}. IN TXT "{display_name}|{dns_name}"')
+        print()
+
 def main():
     """Generate DNS records for all available timezones."""
     domain_suffix = "tz.ottago.com"
@@ -88,13 +115,14 @@ def main():
     print()
     
     # Get all available timezones
-    timezones = sorted(zoneinfo.available_timezones())
+    all_timezones = sorted(zoneinfo.available_timezones())
+    valid_timezones = [tz for tz in all_timezones if '/' in tz]
     
-    for tz_name in timezones:
-        # Skip deprecated/link zones for now
-        if '/' not in tz_name:
-            continue
-            
+    # Generate discovery records first
+    generate_timezone_list(valid_timezones, domain_suffix)
+    
+    # Generate individual timezone records
+    for tz_name in valid_timezones:
         # Convert timezone name to DNS-safe format
         dns_name = tz_name.lower().replace('/', '.')
         full_domain = f"{dns_name}.{domain_suffix}"
